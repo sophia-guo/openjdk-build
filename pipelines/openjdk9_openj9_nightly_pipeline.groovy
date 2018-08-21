@@ -31,7 +31,8 @@ for ( int i = 0; i < buildPlatforms.size(); i++ ) {
 					build job:"openjdk9_j9_${it}_${archOS}",
 							propagate: false,
 							parameters: [string(name: 'UPSTREAM_JOB_NUMBER', value: "${buildJobNum}"),
-									string(name: 'UPSTREAM_JOB_NAME', value: "openjdk9_openj9_build_${archOS}")]
+									string(name: 'UPSTREAM_JOB_NAME', value: "openjdk9_openj9_build_${archOS}")
+									string(name: 'OPENJDK_IMPL', value: 'openj9')]
 				}
 			}
 		}
