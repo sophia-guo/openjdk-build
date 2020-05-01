@@ -1,0 +1,17 @@
+name: "hotspot 14u mac build -jdk"
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: macos-10.15
+    steps:
+    - uses: sophia-guo/build-jdk-hotspot@v1
+      id: buildJDK
+      with: 
+        javaToBuild: 'jdk14u'
+    - run: ${{ steps.buildJDK.outputs.BuildJDKDir }}/bin/java -version
+    - uses: actions/upload-artifact@v2-preview
+      with:
+        name: JDK
+        path: ./**/artifacts/*.tar.gz/
