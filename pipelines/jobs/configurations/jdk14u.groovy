@@ -53,6 +53,7 @@ targetConfigurations = [
         ]
 ]
 
-disableJob = true
+// 20:26
+triggerSchedule="TZ=UTC\n26 20 * * *"
 
 return this
