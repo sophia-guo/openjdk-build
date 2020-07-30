@@ -6,7 +6,7 @@ class Config16 {
                 additionalNodeLabels: 'macos10.14',
                 test                : [
                         nightly: false,
-                        release: ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
+                        weekly : ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
                 ],
                 configureArgs       : '--enable-dtrace'
         ],
@@ -20,11 +20,11 @@ class Config16 {
                 ],
                 test                : [
                         nightly: false,
-                        release: ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf', 'sanity.external', 'special.functional']
+                        weekly : ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf', 'sanity.external', 'special.functional']
                 ],
                 configureArgs       : [
-                        "openj9"      : '--disable-ccache --enable-dtrace --enable-jitserver',
-                        "hotspot"     : '--disable-ccache --enable-dtrace'
+                        "openj9"      : '--enable-dtrace --enable-jitserver',
+                        "hotspot"     : '--enable-dtrace'
                 ]
         ],
 
@@ -40,7 +40,7 @@ class Config16 {
                 ],
                 test                : [
                         nightly: false,
-                        release: ['sanity.openjdk', 'sanity.perf', 'sanity.system', 'extended.system']
+                        weekly : ['sanity.openjdk', 'sanity.perf', 'sanity.system', 'extended.system']
                 ]
         ],
 
@@ -53,7 +53,7 @@ class Config16 {
                 ],
                 test                : [
                         nightly: false,
-                        release: ['sanity.openjdk', 'sanity.system', 'extended.system']
+                        weekly : ['sanity.openjdk', 'sanity.system', 'extended.system']
                 ]
         ],
 
@@ -63,9 +63,9 @@ class Config16 {
                 arch                : 's390x',
                 test                : [
                         nightly: false,
-                        release: ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
+                        weekly : ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
                 ],
-                configureArgs       : '--disable-ccache --enable-dtrace'
+                configureArgs       : '--enable-dtrace'
         ],
 
         ppc64leLinux    : [
@@ -73,11 +73,11 @@ class Config16 {
                 arch                : 'ppc64le',
                 test                : [
                         nightly: false,
-                        release: ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
+                        weekly : ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
                 ],
                 configureArgs       : [
-                        "hotspot"     : '--disable-ccache --enable-dtrace',
-                        "openj9"      : '--disable-ccache --enable-dtrace --enable-jitserver'
+                        "hotspot"     : '--enable-dtrace',
+                        "openj9"      : '--enable-dtrace --enable-jitserver'
                 ]
 
         ],
@@ -88,7 +88,7 @@ class Config16 {
                 dockerImage         : 'adoptopenjdk/centos7_build_image',
                 test                : [
                         nightly: false,
-                        release: ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
+                        weekly : ['sanity.openjdk', 'sanity.system', 'extended.system', 'sanity.perf']
                 ],
                 configureArgs       : '--enable-dtrace'
         ],

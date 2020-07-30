@@ -117,10 +117,14 @@ class Builder implements Serializable {
     List<String> getTestList(Map<String, ?> configuration) {
         if (configuration.containsKey("test")) {
             def testJobType = release ? "release" : "nightly"
-            if (isMap(configuration.test)) {
-                return (configuration.test as Map).get(testJobType) as List<String>
+            if (!configuration.get("test")) {
+                if ( testJobType == "nightly" ) {
+                    return (configuration.test as Map).get("nightly") as List<String>
+                } else {
+                    return (configuration.test as Map).get("nightly") as List<String>) + (configuration.test as Map).get("weekly") as List<String>
+                }
             } else {
-                return configuration.test as List<String>
+                return []
             }
         }
         return []
