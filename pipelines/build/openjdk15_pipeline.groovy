@@ -30,6 +30,7 @@ if (scmVars != null && configureBuild != null && buildConfigurations != null) {
         buildConfigurations,
         targetConfigurations,
         enableTests,
+        enableInstallers,
         releaseType,
         scmReference,
         overridePublishName,
