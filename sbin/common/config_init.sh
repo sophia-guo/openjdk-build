@@ -249,7 +249,7 @@ function parseConfigurationArguments() {
         BUILD_CONFIG[FREETYPE]=false;;
 
         "--help" | "-h" )
-        man ./makejdk-any-platform.1;;
+        man ./makejdk-any-platform.1 && exit 0;;
 
         "--ignore-container" | "-i" )
         BUILD_CONFIG[REUSE_CONTAINER]=false;;
@@ -324,6 +324,8 @@ function setBranch() {
   local branch="dev"
   if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_OPENJ9}" ]; then
     branch="openj9";
+  elif [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_DRAGONWELL}" ]; then
+    branch="master";
   elif [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_CORRETTO}" ]; then
     branch="develop";
   fi
