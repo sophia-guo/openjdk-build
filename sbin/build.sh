@@ -363,11 +363,6 @@ configureCommandParameters()
   echo "Configuring jvm variants if provided"
   addConfigureArgIfValueIsNotEmpty "--with-jvm-variants=" "${BUILD_CONFIG[JVM_VARIANT]}"
 
-  if [ "${BUILD_CONFIG[CUSTOM_CACERTS]}" != "false" ] ; then
-    echo "Configure custom cacerts file security/cacerts"
-    addConfigureArgIfValueIsNotEmpty "--with-cacerts-file=" "$SCRIPT_DIR/../security/cacerts"
-  fi
-
   # Now we add any configure arguments the user has specified on the command line.
   CONFIGURE_ARGS="${CONFIGURE_ARGS} ${BUILD_CONFIG[USER_SUPPLIED_CONFIGURE_ARGS]}"
 
@@ -543,7 +538,7 @@ printJavaVersionString()
        local jdkversion=$(getOpenJdkVersion)
        cat << EOT > "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[TARGET_DIR]}/version.txt"
 openjdk version "${jdkversion%%+*}" "$(date +%Y-%m-%d)"
-OpenJDK Runtime Environment AdoptOpenJDK (build ${jdkversion%%+*}+0-$(date +%Y%m%d%H%M))
+OpenJDK Runtime Environment AdoptOpenJDK (build ${jdkversion}-$(date +%Y%m%d%H%M))
 Eclipse OpenJ9 VM AdoptOpenJDK (build master-000000000, JRE 11 Linux riscv-64-Bit Compressed References $(date +%Y%m%d)_00 (JIT disabled, AOT disabled)
 OpenJ9   - 000000000
 OMR      - 000000000
