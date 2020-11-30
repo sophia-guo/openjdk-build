@@ -33,7 +33,7 @@ class Config11 {
                         "hotspot"     : '--enable-dtrace=auto',
                         "corretto"    : '--enable-dtrace=auto',
                         "SapMachine"  : '--enable-dtrace=auto',
-                        "dragonwell"  : '--enable-dtrace=auto --enable-unlimited-crypto  --with-jvm-variants=server --with-zlib=system --with-jvm-features=zgc'
+                        "dragonwell"  : '--enable-dtrace=auto --enable-unlimited-crypto --with-jvm-variants=server --with-zlib=system --with-jvm-features=zgc'
                 ]
         ],
 
@@ -100,6 +100,7 @@ class Config11 {
         ppc64leLinux    : [
                 os                  : 'linux',
                 arch                : 'ppc64le',
+                additionalNodeLabels : 'centos7',
                 test                : 'default',
                 configureArgs       : [
                         "hotspot"     : '--enable-dtrace=auto',
@@ -111,9 +112,7 @@ class Config11 {
         arm32Linux    : [
                 os                  : 'linux',
                 arch                : 'arm',
-                // TODO Temporarily remove the ARM tests because we don't have fast enough hardware
-                //test                : ['sanity.openjdk', 'sanity.perf']
-                test                : false,
+                test                : 'default',
                 configureArgs       : '--enable-dtrace=auto'
         ],
 
@@ -154,6 +153,7 @@ class Config11 {
         ppc64leLinuxXL    : [
                 os                   : 'linux',
                 arch                 : 'ppc64le',
+                additionalNodeLabels : 'centos7',
                 test                 : 'default',
                 additionalFileNameTag: "linuxXL",
                 configureArgs        : '--with-noncompressedrefs --enable-dtrace=auto --enable-jitserver'

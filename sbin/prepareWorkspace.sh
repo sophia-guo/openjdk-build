@@ -49,6 +49,7 @@ checkoutAndCloneOpenJDKGitRepo() {
     set +e
     git --git-dir "${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}/.git" remote -v
     echo "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}"
+    
     # Ensure cached origin fetch remote repo is correct version and repo (eg.jdk11u, or jdk), remember "jdk" sub-string of jdk11u hence grep with "\s"
     # eg. origin https://github.com/adoptopenjdk/openjdk-jdk11u (fetch)
     # eg. origin https://github.com/adoptopenjdk/openjdk-jdk (fetch)
@@ -56,7 +57,7 @@ checkoutAndCloneOpenJDKGitRepo() {
     if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_DRAGONWELL}" ]; then
       git --git-dir "${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}/.git" remote -v | grep "origin.*fetch"
     else
-      git --git-dir "${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}/.git" remote -v | grep "origin.*fetch" | grep "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" | grep "${BUILD_CONFIG[REPOSITORY]}.git\|${BUILD_CONFIG[REPOSITORY]}\s"
+      git --git-dir "${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}/.git" remote -v | grep "origin.*fetch" | grep "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" | egrep "${BUILD_CONFIG[REPOSITORY]}.git\|${BUILD_CONFIG[REPOSITORY]}\s"
     fi
     local isValidGitRepo=$?
     set -e
@@ -77,8 +78,8 @@ checkoutAndCloneOpenJDKGitRepo() {
       exit 1
     fi
   elif [ ! -d "${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}/.git" ]; then
-    # If it doesn't exist, clone it
-    echo "Didn't find any existing openjdk repository at $(pwd)/${BUILD_CONFIG[WORKING_DIR]} so cloning the source to openjdk"
+    echo "Could not find a valid openjdk git repository at $(pwd)/${BUILD_CONFIG[OPENJDK_SOURCE_DIR]} so re-cloning the source to openjdk"
+    rm -rf "${BUILD_CONFIG[WORKSPACE_DIR]:?}/${BUILD_CONFIG[WORKING_DIR]}/${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}"
     cloneOpenJDKGitRepo
   fi
 
@@ -184,7 +185,7 @@ checkoutRequiredCodeToBuild() {
   fi
 
   # Get the latest tag to stick in the scmref metadata, using the build config tag if it exists
-  local scmrefPath="${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[TARGET_DIR]}scmref.txt"
+  local scmrefPath="${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[TARGET_DIR]}/metadata/scmref.txt"
 
   if [ $rc -eq 0 ]; then
 
@@ -256,7 +257,7 @@ updateOpenj9Sources() {
   # Building OpenJDK with OpenJ9 must run get_source.sh to clone openj9 and openj9-omr repositories
   if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_OPENJ9}" ]; then
     cd "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[WORKING_DIR]}/${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}" || return
-    bash get_source.sh --openssl-version=1.1.1g
+    bash get_source.sh --openssl-version=1.1.1h
     cd "${BUILD_CONFIG[WORKSPACE_DIR]}"
   fi
 }
@@ -408,9 +409,13 @@ downloadFile() {
 
   # Temporary fudge as curl on my windows boxes is exiting with RC=127
   if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
-    wget -O "${targetFileName}" "${url}" || exit 2
-  else
-    curl --fail -L -o "${targetFileName}" "${url}" || exit 2
+    if ! wget -O "${targetFileName}" "${url}"; then
+       echo ERROR: Failed to download "${url}" - exiting
+       exit 2
+    fi
+  elif ! curl --fail -L -o "${targetFileName}" "${url}"; then
+    echo ERROR: Failed to download "${url}" - exiting
+    exit 2
   fi
 
   if [ $# -ge 3 ]; then
@@ -419,7 +424,7 @@ downloadFile() {
     local actualChecksum=$(sha256File ${targetFileName})
 
     if [ "${actualChecksum}" != "${expectedChecksum}" ]; then
-      echo "Failed to verify checksum on ${targetFileName} ${url}"
+      echo "ERROR: Failed to verify checksum on ${targetFileName} ${url}"
 
       echo "Expected ${expectedChecksum} got ${actualChecksum}"
       exit 1
@@ -505,44 +510,15 @@ checkingAndDownloadingFreeType() {
   fi
 }
 
-# Download our security certificates
-downloadCerts() {
-  local caLink="$1"
+# Generates cacerts file
+prepareCacerts() {
+    echo "Generating cacerts from Mozilla's bundle"
 
-  mkdir -p "security"
-  # Temporary fudge as curl on my windows boxes is exiting with RC=127
-  if [[ "$OSTYPE" == "cygwin" ]] || [[ "$OSTYPE" == "msys" ]]; then
-    wget -O "./security/cacerts" "${caLink}"
-  else
-    curl -L -o "./security/cacerts" "${caLink}"
-  fi
+    cd "$SCRIPT_DIR/../security"
+    ./mk-cacerts.sh --keytool "${BUILD_CONFIG[JDK_BOOT_DIR]}/bin/keytool"
 }
 
-# Certificate Authority Certs (CA Certs)
-checkingAndDownloadCaCerts() {
-  cd "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[WORKING_DIR]}" || exit
-
-  echo "Retrieving cacerts file if needed"
-  # Ensure it's the latest we pull in
-  rm -rf "cacerts_area"
-  mkdir "cacerts_area" || exit
-  cd "cacerts_area" || exit
-
-  if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_CORRETTO}" ]; then
-    local caLink="https://github.com/corretto/corretto-8/blob/preview-release/cacerts?raw=true"
-    downloadCerts "$caLink"
-  elif [ "${BUILD_CONFIG[USE_JEP319_CERTS]}" != "true" ]; then
-    git init
-    git remote add origin -f "${BUILD_CONFIG[OPENJDK_BUILD_REPO_URI]}"
-    git config core.sparsecheckout true
-    echo "security/*" >>.git/info/sparse-checkout
-    git pull origin "${BUILD_CONFIG[OPENJDK_BUILD_REPO_BRANCH]}"
-  fi
-
-  cd "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[WORKING_DIR]}" || exit
-}
-
-# Download all of the dependencies for OpenJDK (Alsa, FreeType, CACerts et al)
+# Download all of the dependencies for OpenJDK (Alsa, FreeType, etc.)
 downloadingRequiredDependencies() {
   if [[ "${BUILD_CONFIG[CLEAN_LIBS]}" == "true" ]]; then
     rm -rf "${BUILD_CONFIG[WORKSPACE_DIR]}/libs/freetype" || true
@@ -582,10 +558,6 @@ downloadingRequiredDependencies() {
   else
     echo "Skipping Freetype"
   fi
-
-  echo "Checking and download CaCerts dependency"
-  checkingAndDownloadCaCerts
-
 }
 
 function moveTmpToWorkspaceLocation() {
@@ -671,5 +643,6 @@ function configureWorkspace() {
     relocateToTmpIfNeeded
     checkoutAndCloneOpenJDKGitRepo
     applyPatches
+    prepareCacerts
   fi
 }
