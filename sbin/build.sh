@@ -390,13 +390,14 @@ stepIntoTheWorkingDirectory() {
   fi
 
   echo "Should have the source, I'm at $PWD"
+  ls
 }
 
 buildTemplatedFile() {
   echo "Configuring command and using the pre-built config params..."
 
   stepIntoTheWorkingDirectory
-
+  exit
   echo "Currently at '${PWD}'"
 
   FULL_CONFIGURE="bash ./configure --verbose ${CONFIGURE_ARGS}"
