@@ -16,35 +16,52 @@
 # Expand JDK jmods & zips to process binaries within
 function expandJDK() {
   local JDK_DIR="$1"
-  mkdir "${JDK_DIR}_CP"
-  cp -R ${JDK_DIR}/* ${JDK_DIR}_CP
-  echo "Expanding the 'modules' Image to remove signatures from within.."
-  "${JDK_DIR}_CP/bin/jimage" extract --dir "${JDK_DIR}/lib/modules_extracted" "${JDK_DIR}/lib/modules"
-  rm "${JDK_DIR}/lib/modules"
+  local OS="$2"
+  local JDK_ROOT="$1"
+  local JDK_BIN_DIR="${JDK_ROOT}_CP/bin"
+  if [[ "$OS" =~ Darwin* ]]; then
+    JDK_ROOT=$(realpath ${JDK_DIR}/../../)
+    JDK_BIN_DIR="${JDK_ROOT}_CP/Contents/Home/bin"
+  fi
 
+  mkdir "${JDK_ROOT}_CP"
+  cp -R ${JDK_ROOT}/* ${JDK_ROOT}_CP
+  echo "Expanding the 'modules' Image to remove signatures from within.."
+  ls -l "${JDK_DIR}/lib/modules"
+  cd "${JDK_DIR}/lib/"
+  "${JDK_BIN_DIR}/jimage" extract --dir "${JDK_DIR}/lib/modules_extracted" "modules"
+  cd ../..
+  #"${JDK_BIN_DIR}/jimage" extract --dir "${JDK_DIR}/lib/modules_extracted" "${JDK_DIR}/lib/modules"
+  rm "${JDK_DIR}/lib/modules"
   echo "Expanding the 'src.zip' to normalize file permissions"
   unzip "${JDK_DIR}/lib/src.zip" -d "${JDK_DIR}/lib/src_zip_expanded" 1> /dev/null
   rm "${JDK_DIR}/lib/src.zip"
 
   echo "Expanding jmods to process binaries within"
   FILES=$(find "${JDK_DIR}" -type f -path '*.jmod')
+  currentDir=`pwd`
   for f in $FILES
     do
       base=$(basename "$f")
       dir=$(dirname "$f")
       expand_dir="${dir}/expanded_${base}"
       mkdir -p "${expand_dir}"
-      "${JDK_DIR}_CP/bin/jmod" extract --dir "${expand_dir}" "$f"
-      rm "$f"
+      ls -l "$f"
+      cd "${dir}"
+     # "${JDK_BIN_DIR}/jmod" extract --dir "${expand_dir}" "$f"
+      "${JDK_BIN_DIR}/jmod" extract --dir "${expand_dir}" "$base"
+      cd $currentDir
     done
 
   echo "Expanding the 'jrt-fs.jar' to remove signatures from within.."
   mkdir "${JDK_DIR}/lib/jrt-fs-expanded"
-  unzip -d "${JDK_DIR}/lib/jrt-fs-expanded" "${JDK_DIR}/lib/jrt-fs.jar" 1> /dev/null
+  cd "${JDK_DIR}/lib/"
+  unzip -d "${JDK_DIR}/lib/jrt-fs-expanded" "jrt-fs.jar" 1> /dev/null
   rm "${JDK_DIR}/lib/jrt-fs.jar"
 
   mkdir -p "${JDK_DIR}/jmods/expanded_java.base.jmod/lib/jrt-fs-expanded"
-  unzip -d "${JDK_DIR}/jmods/expanded_java.base.jmod/lib/jrt-fs-expanded" "${JDK_DIR}/jmods/expanded_java.base.jmod/lib/jrt-fs.jar" 1> /dev/null
+  cd "${JDK_DIR}/jmods/expanded_java.base.jmod/lib/"
+  unzip -d "${JDK_DIR}/jmods/expanded_java.base.jmod/lib/jrt-fs-expanded" "jrt-fs.jar" 1> /dev/null
   rm "${JDK_DIR}/jmods/expanded_java.base.jmod/lib/jrt-fs.jar"
 }
 
@@ -54,16 +71,22 @@ function removeSignatures() {
   local OS="$2"
 
   if [[ "$OS" =~ CYGWIN* ]]; then
+    signToolPath="/cygdrive/c/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x64/signtool.exe"
     echo "Removing all Signatures from ${JDK_DIR}"
-    FILES=$(find "${JDK_DIR}" -type f -path '*.exe' && find "${JDK_DIR}" -type f -path '*.dll')
+    FILES=$(find "${JDK_DIR}" -type f -name '*.exe' -o -name '*.dll')
+    currentDir=`pwd`
     for f in $FILES
      do
       echo "Removing signature from $f"
-      if signtool remove /s "$f"; then
-          echo "  ==> Successfully removed signature from $f"
+      base=$(basename "$f")
+      dir=$(dirname "$f")
+      cd $dir
+      if "$signToolPath" remove /s /v "$base"; then
+          echo "  ==> Successfully removed signature from $base"
       else
           echo "  ==> $f contains no signature"
       fi
+      cd $currentDir
      done
   elif [[ "$OS" =~ Darwin* ]]; then
     MAC_JDK_ROOT="${JDK_DIR}/../.."
@@ -81,7 +104,7 @@ function removeSignatures() {
     for f in $FILES
     do
         echo "Removing signature from $f"
-        codesign --remove-signature "$f"
+        codesign --remove-signature "$f" 1> /dev/null
     done
   fi
 }
@@ -92,30 +115,35 @@ function tempSign() {
   local OS="$2"
 
   if [[ "$OS" =~ CYGWIN* ]]; then
+    signToolPath="/cygdrive/c/Program Files (x86)/Windows Kits/10/bin/10.0.17763.0/x64/signtool.exe"
     echo "Adding temp Signatures for ${JDK_DIR}"
-    FILES=$(find "${JDK_DIR}" -type f -path '*.exe' && find "${JDK_DIR}" -type f -path '*.dll')
+    selfCert="test"
+    openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout $selfCert.key -out $selfCert.crt -subj "/CN=example.com" -addext "subjectAltName=DNS:example.com,DNS:*.example.com,IP:10.0.0.1"
+    openssl pkcs12 -export -passout pass:test -out $selfCert.pfx -inkey $selfCert.key -in $selfCert.crt
+    echo "Signing test"
+    FILES=$(find "${JDK_DIR}" -type f -name '*.exe' -o -name '*.dll')
     for f in $FILES
      do
       echo "Signing $f"
-      if signtool sign /f "$SELF_CERT" /p "$SELF_CERT_PASS" "$f" ; then
-          echo "  ==> Successfully signed $f"
+      winPathFile=`cygpath -w $f`
+      if "$signToolPath" sign /f $selfCert.pfx /p test /fd SHA256 $winPathFile; then
+          echo "  ==> Successfully signed $winPathFile"
       else
-          echo "  ==> $f failed to be signed!!"
+          echo "  ==> $winPathFile failed to be signed!!"
           exit 1
       fi
      done
   elif [[ "$OS" =~ Darwin* ]]; then
     MAC_JDK_ROOT="${JDK_DIR}/../../Contents"
     echo "Adding temp Signatures for ${MAC_JDK_ROOT}"
-    openssl genpkey -algorithm RSA -pass pass:test -outform PEM -out privatePemFile -pkeyopt rsa_keygen_bits:2048
-    echo "public key"
-    openssl rsa -in ${privatePemFile} -passin pass:test -pubout -out publicPemFile
+    #TODO Generate locally certificate SELF_CERT
+
     FILES=$(find "${MAC_JDK_ROOT}" \( -type f -and -path '*.dylib' -or -path '*/bin/*' -or -path '*/lib/jspawnhelper' -not -path '*/modules_extracted/*' -or -path '*/jpackageapplauncher*' \))
     for f in $FILES
     do
         echo "Signing $f with a local certificate"
         # Sign both with same local Certificate, this adjusts __LINKEDIT vmsize identically
-        codesign -s "$privatePemFile" --options runtime -f --timestamp "$f"
+        codesign -s "$SELF_CERT" --options runtime -f --timestamp "$f"
     done
   fi
 }
