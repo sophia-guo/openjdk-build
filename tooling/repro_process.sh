@@ -22,6 +22,7 @@ OS="$2"
 
 expandJDK "$JDK_DIR"
 
+
 if [[ "$OS" =~ CYGWIN* ]] || [[ "$OS" =~ Darwin* ]]; then
   # Remove existing signature
   removeSignatures "$JDK_DIR" "$OS"
@@ -30,7 +31,7 @@ if [[ "$OS" =~ CYGWIN* ]] || [[ "$OS" =~ Darwin* ]]; then
   tempSign "$JDK_DIR" "$OS"
 
   # Remove temporary SELF_SIGN signature, which will then normalize binary length
- # removeSignatures "$JDK_DIR" "$OS"
+  removeSignatures "$JDK_DIR" "$OS"
 fi
 
 patchManifests "${JDK_DIR}"

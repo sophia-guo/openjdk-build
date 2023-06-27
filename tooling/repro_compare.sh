@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ################################################################################
-
 source repro_common.sh
 
 BLD_TYPE1="$1"
@@ -48,6 +47,7 @@ done
 
 
 files1=$(find "${JDK_DIR1}" -type f | wc -l)
+echo "Number of files: ${files1}"
 rc=0
 output="repro_diff.out"
 echo "Comparing ${JDK_DIR1} with ${JDK_DIR2} ... output to file: ${output}"
