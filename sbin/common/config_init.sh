@@ -38,6 +38,8 @@ OPENJDK_BUILD_REPO_BRANCH
 OPENJDK_BUILD_REPO_URI
 BRANCH
 BUILD_FULL_NAME
+BUILD_REPRODUCIBLE_DATE
+BUILD_TIMESTAMP
 BUILD_VARIANT
 CERTIFICATE
 CLEAN_DOCKER_BUILD
@@ -48,6 +50,9 @@ COPY_MACOSX_FREE_FONT_LIB_FOR_JDK_FLAG
 COPY_MACOSX_FREE_FONT_LIB_FOR_JRE_FLAG
 COPY_TO_HOST
 CREATE_DEBUG_IMAGE
+CREATE_JRE_IMAGE
+CREATE_SBOM
+CREATE_SOURCE_ARCHIVE
 CUSTOM_CACERTS
 CROSSCOMPILE
 DEBUG_DOCKER
@@ -66,6 +71,7 @@ JDK_BOOT_DIR
 JDK_PATH
 JRE_PATH
 TEST_IMAGE_PATH
+STATIC_LIBS_IMAGE_PATH
 JVM_VARIANT
 MACOSX_CODESIGN_IDENTITY
 MAKE_ARGS_FOR_ANY_PLATFORM
@@ -79,6 +85,7 @@ OPENJDK_FOREST_NAME
 OPENJDK_SOURCE_DIR
 OPENJDK_UPDATE_VERSION
 OS_KERNEL_NAME
+OS_FULL_VERSION
 OS_ARCHITECTURE
 PATCHES
 RELEASE
@@ -125,7 +132,7 @@ index=0
 while [  $index -lt $numParams ]; do
     paramName=${CONFIG_PARAMS[$index]};
     eval declare -r -x "$paramName=$index"
-    PARAM_LOOKUP[$index]=$paramName
+    PARAM_LOOKUP[index]=$paramName
 
     # shellcheck disable=SC2219
     let index=index+1
@@ -147,6 +154,16 @@ function writeConfigToFile() {
     mkdir -p "workspace/config"
   fi
   displayParams | sed 's/\r$//' > ./workspace/config/built_config.cfg
+}
+
+function createConfigToJsonString() {
+  jsonString="{ "
+  for K in "${!BUILD_CONFIG[@]}";
+  do
+    jsonString+="\"${PARAM_LOOKUP[$K]}\" : \"${BUILD_CONFIG[$K]}\", "
+  done
+  jsonString+=" \"Data Source\" : \"BUILD_CONFIG hashmap\"}"
+  echo "${jsonString}"
 }
 
 function loadConfigFromFile() {
@@ -197,6 +214,9 @@ function parseConfigurationArguments() {
         "--build-variant" )
         BUILD_CONFIG[BUILD_VARIANT]="$1"; shift;;
 
+        "--build-reproducible-date" )
+        BUILD_CONFIG[BUILD_REPRODUCIBLE_DATE]="$1"; shift;;
+
         "--branch" | "-b" )
         BUILD_CONFIG[BRANCH]="$1"; shift;;
 
@@ -232,6 +252,15 @@ function parseConfigurationArguments() {
 
         "--create-debug-image" )
         BUILD_CONFIG[CREATE_DEBUG_IMAGE]="true";;
+
+        "--create-jre-image" )
+        BUILD_CONFIG[CREATE_JRE_IMAGE]=true;;
+
+        "--create-sbom" )
+        BUILD_CONFIG[CREATE_SBOM]=true;;
+
+        "--create-source-archive" )
+        BUILD_CONFIG[CREATE_SOURCE_ARCHIVE]=true;;
 
         "--disable-adopt-branch-safety" )
         BUILD_CONFIG[DISABLE_ADOPT_BRANCH_SAFETY]=true;;
@@ -325,6 +354,15 @@ function parseConfigurationArguments() {
         "--vendor" | "-ve" )
         BUILD_CONFIG[VENDOR]="$1"; shift;;
 
+        "--vendor-url")
+        BUILD_CONFIG[VENDOR_URL]="$1"; shift;;
+
+        "--vendor-bug-url")
+        BUILD_CONFIG[VENDOR_BUG_URL]="$1"; shift;;
+
+        "--vendor-vm-bug-url")
+        BUILD_CONFIG[VENDOR_VM_BUG_URL]="$1"; shift;;
+
         "--version"  | "-v" )
         setOpenJdkVersion "$1"
         setDockerVolumeSuffix "$1"; shift;;
@@ -341,11 +379,15 @@ function parseConfigurationArguments() {
 
 function setBranch() {
 
-  # Which repo branch to build, e.g. dev by default for hotspot, "openj9" for openj9
-  local branch="dev"
-  if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_OPENJ9}" ]; then
+  # Which repo branch to build, e.g. dev by default for temurin, "openj9" for openj9
+  local branch="master"
+  if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_TEMURIN}" ]; then
+    branch="dev"
+  elif [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_OPENJ9}" ]; then
     branch="openj9";
   elif [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_DRAGONWELL}" ]; then
+    branch="master";
+  elif [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_FAST_STARTUP}" ]; then
     branch="master";
   elif [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_CORRETTO}" ]; then
     branch="develop";
@@ -365,6 +407,29 @@ function configDefaults() {
 
   # The OS kernel name, e.g. 'darwin' for Mac OS X
   BUILD_CONFIG[OS_KERNEL_NAME]=$(uname | awk '{print tolower($0)}')
+
+  # Determine OS full system version
+  local unameSys=$(uname -s)
+  local unameOSSysVer=$(uname -sr)
+  local unameKernel=$(uname -r)
+  if [ "${unameSys}" == "Linux" ]; then
+    if [ -f "/etc/os-release" ]; then
+      local unameFullOSVer=$(awk -F= '/^NAME=/{OS=$2}/^VERSION_ID=/{VER=$2}END{print OS " " VER}' /etc/os-release  | tr -d '"')
+      unameOSSysVer="${unameFullOSVer} (Kernel: ${unameKernel})"
+    elif [ -f "/etc/system-release" ]; then
+      local linuxName=$(tr -d '"' < /etc/system-release)
+      unameOSSysVer="${unameOSSysVer} : ${linuxName} (Kernel: ${unameKernel} )"
+    else
+      unameOSSysVer="${unameSys} : unameOSSysVer (Kernel: ${unameKernel} )"
+    fi
+  elif [ "${unameSys}" == "AIX" ]; then
+    # AIX provides full version info using oslevel
+    aixVer=$(oslevel -r)
+    unameOSSysVer="${unameSys} ${aixVer}"
+  fi
+
+  # Store the OS full version name, eg.Darwin 20.4.0
+  BUILD_CONFIG[OS_FULL_VERSION]="${unameOSSysVer}"
 
   local arch=$(uname -m)
 
@@ -403,7 +468,7 @@ function configDefaults() {
   BUILD_CONFIG[COPY_MACOSX_FREE_FONT_LIB_FOR_JRE_FLAG]="false"
   BUILD_CONFIG[FREETYPE]=true
   BUILD_CONFIG[FREETYPE_DIRECTORY]=""
-  BUILD_CONFIG[FREETYPE_FONT_VERSION]="2.9.1"
+  BUILD_CONFIG[FREETYPE_FONT_VERSION]="86bc8a95056c97a810986434a3f268cbe67f2902" # 2.9.1
   BUILD_CONFIG[FREETYPE_FONT_BUILD_TYPE_PARAM]=""
 
   case "${BUILD_CONFIG[OS_KERNEL_NAME]}" in
@@ -415,8 +480,20 @@ function configDefaults() {
       ;;
   esac
 
+  # Default to no supplied reproducible build date, uses current date
+  BUILD_CONFIG[BUILD_REPRODUCIBLE_DATE]=""
+
   # The default behavior of whether we want to create a separate debug symbols archive
   BUILD_CONFIG[CREATE_DEBUG_IMAGE]="false"
+
+  # The default behavior of whether we want to create the legacy JRE
+  BUILD_CONFIG[CREATE_JRE_IMAGE]="false"
+
+  # Set default value to "false". We config buildArg per each config file to have it enabled by our pipeline
+  BUILD_CONFIG[CREATE_SBOM]="false"
+
+  # The default behavior of whether we want to create a separate source archive
+  BUILD_CONFIG[CREATE_SOURCE_ARCHIVE]="false"
 
   BUILD_CONFIG[SIGN]="false"
   BUILD_CONFIG[JDK_BOOT_DIR]=""
@@ -424,7 +501,7 @@ function configDefaults() {
   BUILD_CONFIG[MACOSX_CODESIGN_IDENTITY]=${BUILD_CONFIG[MACOSX_CODESIGN_IDENTITY]:-""}
 
   BUILD_CONFIG[NUM_PROCESSORS]="1"
-  BUILD_CONFIG[TARGET_FILE_NAME]="OpenJDK.tar.gz"
+  BUILD_CONFIG[TARGET_FILE_NAME]="OpenJDK-jdk.tar.gz"
 
   # Dir where we clone the OpenJDK source code for building, defaults to 'src'
   BUILD_CONFIG[OPENJDK_SOURCE_DIR]="src"
@@ -514,13 +591,13 @@ function configDefaults() {
 
   BUILD_CONFIG[CROSSCOMPILE]=false
 
-  # By default assume we have adopt patches applied to the repo
+  # By default assume we have Adoptium patches applied to the repo
   BUILD_CONFIG[ADOPT_PATCHES]=true
 
   BUILD_CONFIG[DISABLE_ADOPT_BRANCH_SAFETY]=false
 
   # Used in 'release' file for jdk8u
-  BUILD_CONFIG[VENDOR]=${BUILD_CONFIG[VENDOR]:-"Eclipse Foundation"}
+  BUILD_CONFIG[VENDOR]=${BUILD_CONFIG[VENDOR]:-"Undefined Vendor"}
 }
 
 # Declare the map of build configuration that we're going to use

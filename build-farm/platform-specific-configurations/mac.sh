@@ -19,15 +19,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # shellcheck source=sbin/common/constants.sh
 source "$SCRIPT_DIR/../../sbin/common/constants.sh"
 
-# A function that returns true if the variant is based on Hotspot and should
-# be treated as such by this build script. There is a similar function in
-# sbin/common.sh but we didn't want to refactor all of this on release day.
-function isHotSpot() {
-  [ "${VARIANT}" == "${BUILD_VARIANT_HOTSPOT}" ] ||
-  [ "${VARIANT}" == "${BUILD_VARIANT_SAP}" ] ||
-  [ "${VARIANT}" == "${BUILD_VARIANT_CORRETTO}" ]
-}
-
 export MACOSX_DEPLOYMENT_TARGET=10.9
 export BUILD_ARGS="${BUILD_ARGS}"
 
@@ -35,17 +26,13 @@ if [ "${JAVA_TO_BUILD}" == "${JDK8_VERSION}" ]
 then
   XCODE_SWITCH_PATH="/Applications/Xcode.app"
   export CONFIGURE_ARGS_FOR_ANY_PLATFORM="${CONFIGURE_ARGS_FOR_ANY_PLATFORM} --with-toolchain-type=clang"
-  # See https://github.com/adoptium/temurin-build/issues/1202
-  if isHotSpot; then
-    export COMPILER_WARNINGS_FATAL=false
-    echo "Compiler Warnings set to: $COMPILER_WARNINGS_FATAL"
-  fi
   if [ "${VARIANT}" == "${BUILD_VARIANT_OPENJ9}" ]; then
     export CONFIGURE_ARGS_FOR_ANY_PLATFORM="${CONFIGURE_ARGS_FOR_ANY_PLATFORM} --with-openssl=fetched --enable-openssl-bundling"
+    export BUILD_ARGS="${BUILD_ARGS} --skip-freetype"
   fi
 else
-  if [[ "$JAVA_FEATURE_VERSION" -ge 17 ]]; then
-    # JDK17 requires metal (included in full xcode)
+  if [[ "$JAVA_FEATURE_VERSION" -ge 17 ]] || [[ "${ARCHITECTURE}" == "aarch64" ]]; then
+    # JDK17 requires metal (included in full xcode) as does JDK11 on aarch64
     XCODE_SWITCH_PATH="/Applications/Xcode.app"
   else
     # Command line tools used from JDK9-JDK16
@@ -58,7 +45,7 @@ else
     if [ "${ARCHITECTURE}" == "x64" ]; then
       # We can only target 10.9 on intel macs
       export CONFIGURE_ARGS_FOR_ANY_PLATFORM="${CONFIGURE_ARGS_FOR_ANY_PLATFORM} --with-extra-cxxflags=-mmacosx-version-min=10.9"
-    elif [ "${ARCHITECTURE}" == "arm64" ]; then
+    elif [ "${ARCHITECTURE}" == "aarch64" ]; then
       export CONFIGURE_ARGS_FOR_ANY_PLATFORM="${CONFIGURE_ARGS_FOR_ANY_PLATFORM} --openjdk-target=aarch64-apple-darwin"
     fi
   fi
@@ -81,44 +68,45 @@ fi
 echo "[WARNING] You may be asked for your su user password, attempting to switch Xcode version to ${XCODE_SWITCH_PATH}"
 sudo xcode-select --switch "${XCODE_SWITCH_PATH}"
 
-# Adopt does not have builds of OpenJDK 7, OpenJDK 8 can boot itself just fine.
-if [ "${JAVA_FEATURE_VERSION}" = "8" ]; then
-  BOOT_JDK_VERSION="${JAVA_FEATURE_VERSION}"
-else
-  BOOT_JDK_VERSION="$((JAVA_FEATURE_VERSION-1))"
+# No MacOS builds available of OpenJDK 7, OpenJDK 8 can boot itself just fine.
+if [ "${JDK_BOOT_VERSION}" == "7" ]; then
+  echo "No jdk7 boot JDK available on MacOS using jdk8"
+  JDK_BOOT_VERSION="8"
 fi
-BOOT_JDK_VARIABLE="JDK${BOOT_JDK_VERSION}_BOOT_DIR"
+BOOT_JDK_VARIABLE="JDK${JDK_BOOT_VERSION}_BOOT_DIR"
 if [ ! -d "$(eval echo "\$$BOOT_JDK_VARIABLE")" ]; then
-  bootDir="$PWD/jdk-$BOOT_JDK_VERSION"
+  bootDir="$PWD/jdk-$JDK_BOOT_VERSION"
   # Note we export $BOOT_JDK_VARIABLE (i.e. JDKXX_BOOT_DIR) here
   # instead of BOOT_JDK_VARIABLE (no '$').
   export "${BOOT_JDK_VARIABLE}"="$bootDir/Contents/Home"
   if [ ! -x "$bootDir/Contents/Home/bin/javac" ]; then
-    if [ -x /Library/Java/JavaVirtualMachines/adoptopenjdk-${BOOT_JDK_VERSION}/Contents/Home/bin/javac ]; then
-      echo Could not use "${BOOT_JDK_VARIABLE}" - using /Library/Java/JavaVirtualMachines/adoptopenjdk-${BOOT_JDK_VERSION}/Contents/Home
-      export "${BOOT_JDK_VARIABLE}"="/Library/Java/JavaVirtualMachines/adoptopenjdk-${BOOT_JDK_VERSION}/Contents/Home"
-    elif [ "$BOOT_JDK_VERSION" -ge 8 ]; then # Adopt has no build pre-8
+    # To support multiple vendor names we set a jdk-* symlink pointing to the actual boot JDK
+    if [ -x "/Library/Java/JavaVirtualMachines/jdk-${JDK_BOOT_VERSION}/Contents/Home/bin/javac" ]; then
+      echo "Could not use ${BOOT_JDK_VARIABLE} - using /Library/Java/JavaVirtualMachines/jdk-${JDK_BOOT_VERSION}/Contents/Home"
+      export "${BOOT_JDK_VARIABLE}"="/Library/Java/JavaVirtualMachines/jdk-${JDK_BOOT_VERSION}/Contents/Home"
+    elif [ "$JDK_BOOT_VERSION" -ge 8 ]; then # Adoptium has no build pre-8
       mkdir -p "$bootDir"
-      releaseType="ga"
-      apiUrlTemplate="https://api.adoptopenjdk.net/v3/binary/latest/\${BOOT_JDK_VERSION}/\${releaseType}/mac/\${ARCHITECTURE}/jdk/\${VARIANT}/normal/adoptopenjdk"
-      apiURL=$(eval echo ${apiUrlTemplate})
-      echo "Downloading GA release of boot JDK version ${BOOT_JDK_VERSION} from ${apiURL}"
-      # make-adopt-build-farm.sh has 'set -e'. We need to disable that for
-      # the fallback mechanism, as downloading of the GA binary might fail.
-      set +e
-      wget -q -O "${BOOT_JDK_VERSION}.tgz" "${apiURL}" && tar xpzf "${BOOT_JDK_VERSION}.tgz" --strip-components=1 -C "$bootDir" && rm "${BOOT_JDK_VERSION}.tgz"
-      retVal=$?
-      set -e
-      if [ $retVal -ne 0 ]; then
-        # We must be a JDK HEAD build for which no boot JDK exists other than
-        # nightlies?
-        echo "Downloading GA release of boot JDK version ${BOOT_JDK_VERSION} failed."
+      for releaseType in "ga" "ea"
+      do
         # shellcheck disable=SC2034
-        releaseType="ea"
-        apiURL=$(eval echo ${apiUrlTemplate})
-        echo "Attempting to download EA release of boot JDK version ${BOOT_JDK_VERSION} from ${apiURL}"
-        wget -q -O - "${apiURL}" | tar xpzf - --strip-components=1 -C "$bootDir"
-      fi
+        for vendor1 in "adoptium" "adoptopenjdk"
+        do
+          # shellcheck disable=SC2034
+          for vendor2 in "eclipse" "adoptium" "adoptopenjdk"
+          do
+            apiUrlTemplate="https://api.\${vendor1}.net/v3/binary/latest/\${JDK_BOOT_VERSION}/\${releaseType}/mac/\${ARCHITECTURE}/jdk/hotspot/normal/\${vendor2}"
+            apiURL=$(eval echo ${apiUrlTemplate})
+            echo "Downloading ${releaseType} release of boot JDK version ${JDK_BOOT_VERSION} from ${apiURL}"
+            set +e
+            wget -q -O "${JDK_BOOT_VERSION}.tgz" "${apiURL}" && tar xpzf "${JDK_BOOT_VERSION}.tgz" --strip-components=1 -C "$bootDir" && rm "${JDK_BOOT_VERSION}.tgz"
+            retVal=$?
+            set -e
+            if [ $retVal -eq 0 ]; then
+              break 3
+            fi
+          done
+        done
+      done
     fi
   fi
 fi

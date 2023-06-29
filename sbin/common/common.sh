@@ -41,9 +41,9 @@ function setOpenJdkVersion() {
     retryMax=5
     until [ "$retryCount" -ge "$retryMax" ]
     do
-        # Use Adopt API to get the JDK Head number
-        echo "This appears to be JDK Head. Querying the Adopt API to get the JDK HEAD Number (https://api.adoptopenjdk.net/v3/info/available_releases)..."
-        local featureNumber=$(curl -q https://api.adoptopenjdk.net/v3/info/available_releases | awk '/tip_version/{print$2}')
+        # Use Adoptium API to get the JDK Head number
+        echo "This appears to be JDK Head. Querying the Adoptium API to get the JDK HEAD Number (https://api.adoptium.net/v3/info/available_releases)..."
+        local featureNumber=$(curl -q https://api.adoptium.net/v3/info/available_releases | awk '/tip_version/{print$2}')
         
         # Checks the api request was successful and the return value is a number
         if [ -z "${featureNumber}" ] || ! [[ "${featureNumber}" -gt 0 ]]
@@ -59,8 +59,8 @@ function setOpenJdkVersion() {
     # Fail build if we still can't find the head number
     if [ -z "${featureNumber}" ] || ! [[ "${featureNumber}" -gt 0 ]]
     then
-        echo "Failed ${retryCount} times to query or parse the adopt api. Dumping headers via curl -v https://api.adoptopenjdk.net/v3/info/available_releases and exiting..."
-        curl -v https://api.adoptopenjdk.net/v3/info/available_releases
+        echo "Failed ${retryCount} times to query or parse the adopt api. Dumping headers via curl -v https://api.adoptium.net/v3/info/available_releases and exiting..."
+        curl -v https://api.adoptium.net/v3/info/available_releases
         echo curl returned RC $? in common.sh
         exit 1
     fi
@@ -129,7 +129,8 @@ createOpenJDKArchive()
   if which pigz > /dev/null 2>&1; then
     COMPRESS=pigz
   fi
-  echo "Archiving the build OpenJDK image and compressing with $COMPRESS"
+
+  echo "Archiving and compressing with $COMPRESS"
 
   EXT=$(getArchiveExtension)
 
@@ -207,8 +208,25 @@ function setBootJdk() {
 
 # A function that returns true if the variant is based on HotSpot and should
 # be treated as such by the build scripts
+# This is possibly only used in configureBuild.sh for arm32
+# But should perhaps just be "if not openj9" to include Dragonwell/Bisheng
 function isHotSpot() {
   [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_HOTSPOT}" ] ||
+  [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_TEMURIN}" ] ||
   [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_SAP}" ] ||
   [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_CORRETTO}" ]
 }
+
+# A function that determines if the local date implementation is a GNU or BusyBox
+# as opposed to BSD, so that the correct date syntax can be used
+function isGnuCompatDate() {
+  local isGnuCompatDate=$(date --version 2>&1 | grep "GNU\|BusyBox" || true)
+  [ "x${isGnuCompatDate}" != "x" ]
+}
+
+# Returns true if the OPENJDK_FEATURE_NUMBER is an LTS version (every 2 years)
+# from jdk-21 onwards
+function isFromJdk21LTS() {
+  [[ "${BUILD_CONFIG[OPENJDK_FEATURE_NUMBER]}" -ge 21 ]] && [[ $(((BUILD_CONFIG[OPENJDK_FEATURE_NUMBER]-21) % 4)) == 0 ]]
+}
+

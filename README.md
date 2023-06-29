@@ -1,12 +1,15 @@
-# Repository for code and instructions for building Temurin
+<!-- textlint-disable terminology -->
+# Repository for code and instructions for building OpenJDK binaries, defaulting to Eclipse Temurin™
 
-[![Slack](https://slackin-jmnmplfpdu.now.sh/badge.svg)](https://slackin-jmnmplfpdu.now.sh/)
+These scripts can be used to build OpenJDK anywhere but are primarily used by Eclipse Adoptium members (vendors) to build binaries. The scripts default to the use case of building Eclipse Temurin binaries which occurs on the build farm at <https://ci.adoptium.net>. Those binaries are then made available for consumption at <https://adoptium.net> and via the API <https://api.adoptium.net>.
 
-Temurin makes use of these scripts to build binaries on the build farm at
-<https://ci.adoptopenjdk.net>, which produces OpenJDK binaries for consumption via
-<https://adoptium.net> and <https://api.adoptium.net>.
+**NOTE** In the future, adoptium.net will transition to being a marketplace for other qualifying vendors as well Eclipse Temurin.
 
-## TL;DR: I want to build a JDK NOW!
+## Where can I find the release status of Eclipse Temurin™ binaries?
+
+Go to the [Eclipse Adoptium Top Level Project repository](https://www.github.com/adoptium/adoptium/issues) for release tracking.
+
+## TL;DR: I want to build a JDK NOW
 
 ### Build jdk natively on your system
 
@@ -20,10 +23,10 @@ repository (`git clone https://github.com/adoptium/temurin-build` and
 kick off a build a follows with this script. The `-J` parameter specifies
 the "boot JDK" which should generally be one major version prior to the one
 you are building (although one of the same major version will also work).
-Note that the build variant defaults to HotSpot if omitted.
+Note that the build variant defaults to HotSpot if omitted which builds from the same repositories as Temurin.
 
 ```bash
-./makejdk-any-platform.sh (-J /usr/lib/jvm/jdk-xx) (--build-variant <hotspot|openj9|corretto|SapMachine|dragonwell|bisheng>) <jdk8u|jdk11u|jdk15u|jdk>
+./makejdk-any-platform.sh (-J /usr/lib/jvm/jdk-xx) (--build-variant <hotspot|openj9|corretto|SapMachine|dragonwell|bisheng>) <jdk8u|jdk11u|jdk16u|jdk>
 ```
 
 e.g.
@@ -46,7 +49,7 @@ as we can generate valid dockerfile for it):
 ```
 
 We test these dockerfiles on a regular basis in the
-[Dockerfilecheck](https://ci.adoptopenjdk.net/job/DockerfileCheck/) job
+[Dockerfilecheck](https://ci.adoptium.net/job/DockerfileCheck/) job
 to ensure they continue to work in a stable fashion.
 
 ## Repository contents
@@ -55,11 +58,11 @@ This repository contains several useful scripts in order to build OpenJDK
 personally or at build farm scale.
 
 1. The `build-farm` folder contains shell scripts for multi configuration Jenkins
-build jobs used for building Adopt OpenJDK binaries.
+build jobs used for building Adoptium OpenJDK binaries.
 1. The `docker` folder contains tools for generating dockerfiles which can be used as part of building
 OpenJDK inside a Docker container.
-1. The `git-hg` folder has now been moved to it's own seperate repository. See [openjdk-mirror-scripts](https://github.com/adoptium/mirror-scripts).
-1. The `pipelines` folder has now been moved to a seperate repo: <https://github.com/adoptium/ci-jenkins-pipelines>.
+1. The `git-hg` folder has now been moved to it's own separate repository. See [openjdk-mirror-scripts](https://github.com/adoptium/mirror-scripts).
+1. The `pipelines` folder has now been moved to a separate repo: <https://github.com/adoptium/ci-jenkins-pipelines>.
 1. The `sbin` folder contains the scripts that actually build (Temurin).
 `build.sh` is the entry point which can be used stand alone but is typically
 called by the `native-build.sh` or `docker-build.sh` scripts (which themselves
@@ -70,7 +73,7 @@ file that's used to enable SSL connections.
 
 ## The makejdk-any-platform.sh script
 
-`makejdk-any-platform.sh` is the entry point for building (Adopt) OpenJDK binaries.
+`makejdk-any-platform.sh` is the entry point for building (Adoptium) OpenJDK binaries.
 Building natively or in a docker container are both supported. This script (and
 its supporting scripts) have defaults, but you can override these as needed.
 The scripts will auto detect the platform and architecture it is running on and
@@ -103,7 +106,7 @@ OPTIONS
 
 -b, --branch <branch>
 specify a custom branch to build from, e.g. dev.
-For reference, Adoptium GitHub source repos default to the dev
+For reference, Adoptium GitHub source repositories default to the dev
 branch which may contain a very small diff set to the master branch
 (which is a clone from the OpenJDK mercurial forest).
 
@@ -125,10 +128,16 @@ specify any custom user configuration arguments, using
 temporary_speech_mark_placeholder in the place of any speech marks.
 
 --clean-git-repo
-clean out any 'bad' local git repo you already have.
+clean out any 'bad' local git repository you already have.
 
 --create-debug-image
 create a debug-image archive with the debug symbols.
+
+--create-jre-image
+create the legacy JRE image in addition to the JDK image.
+
+--create-sbom
+create the CycloneDX System Bill of Materials (JSON artifact).
 
 -d, --destination <path>
 specify the location for the built binary, e.g. /path/.
@@ -152,7 +161,7 @@ specify the location of an existing FreeType library.
 This is typically used in conjunction with -F.
 
 --freetype-build-param <parameter>
-specify any special freetype build parameters (required for some OS's).
+specify any special freetype build parameters (required for some Operating Systems).
 
 --freetype-version <version>
 specify the version of freetype you are building.
@@ -180,7 +189,7 @@ if using docker, keep the container after the build.
 creates an exploded image (useful for codesigning jmods). Use --assemble-exploded-image once you have signed the jmods to complete the packaging steps.
 
 --custom-cacerts <true|false>
-If true (default), a custom cacerts file will be generated based on Mozilla's list of CA certificates (see folder security/). If false, the file shipped by OpenJDK will be used. 
+If true (default), a custom cacerts file will be generated based on the Mozilla list of CA certificates (see folder security/). If false, the file shipped by OpenJDK will be used. 
 
 -n, --no-colour
 disable colour output.
@@ -269,7 +278,7 @@ general preparation.
 
 ### Building OpenJDK from a non-Adoptium repository
 
-These scripts default to using Adoptium as the OpenJDK source repo to build
+These scripts default to using Adoptium as the OpenJDK source repository to build
 from, but you can override this with the `-r` flag. If you want to run from a
 non-default branch you can also specify -b e.g.
 
@@ -296,7 +305,7 @@ Alongside the built assets a metadata file will be created with info about the b
 
 ```json
 {
-    "vendor": "Eclipse Foundation",
+    "vendor": "Eclipse Adoptium",
     "os": "mac",
     "arch": "x64",
     "variant": "openj9",
@@ -329,14 +338,14 @@ Alongside the built assets a metadata file will be created with info about the b
 
 The Metadata class is contained in the [Metadata.groovy](https://github.com/adoptium/ci-jenkins-pipelines/blob/master/pipelines/library/src/common/MetaData.groovy) file and the Json is constructed and written in the [openjdk_build_pipeline.groovy](https://github.com/adoptium/ci-jenkins-pipelines/blob/master/pipelines/build/common/openjdk_build_pipeline.groovy) file.
 
-It is worth noting the additional tags on the semver is the adopt build number.
+It is worth noting the additional tags on the SemVer is the build number.
 
 Below are all of the keys contained in the metadata file and some example values that can be present.
 
 ----
 
 - `vendor:`
-Example values: [`Eclipse Foundation`, `Alibaba`]
+Example values: [`Eclipse Adoptium`, `Alibaba`]
 
 This tag is used to identify the vendor of the JDK being built, this value is set in the [build.sh](https://github.com/adoptium/temurin-build/blob/805e76acbb8a994abc1fb4b7d582486d48117ee8/sbin/build.sh#L183) file and defaults to "Adoptium".
 
@@ -423,7 +432,7 @@ Example values: [`202008210941`, `202010120348`, `202007272039`]
 - `scmRef:`
 Example values: [`dragonwell-8.4.4_jdk8u262-b10`, `jdk-16+19_adopt-61198-g59e3baa94ac`, `jdk-11.0.9+10_adopt-197-g11f44f68c5`, `23f997ca1`]  
 
-A reference the the base JDK repository being build, usually including a Github commit reference, i.e. `jdk-16+19_adopt-61198-g59e3baa94ac` links to `https://github.com/adoptium/openjdk-jdk/commit/59e3baa94ac` via the commit SHA **59e3baa94ac**.
+A reference the the base JDK repository being build, usually including a GitHub commit reference, i.e. `jdk-16+19_adopt-61198-g59e3baa94ac` links to `https://github.com/adoptium/openjdk-jdk/commit/59e3baa94ac` via the commit SHA **59e3baa94ac**.
 
 Values that only contain a commit reference such as `23f997ca1` are OpenJ9 commits on their respective JDK repositories, for example **23f997ca1** links to the commit `https://github.com/ibmruntimes/openj9-openjdk-jdk14/commit/23f997ca1.`
 

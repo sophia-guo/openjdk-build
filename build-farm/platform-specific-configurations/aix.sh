@@ -15,8 +15,16 @@
 # limitations under the License.
 ################################################################################
 
-
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Clear out /tmp/sh-np files if we're running in jenkins to avoid
+# "ambiguous redirect" pipe failures. This will be ok with only one executor
+# See https://github.com/adoptium/infrastructure/issues/929
+if [ "$(whoami)" = "jenkins" ] && [ -n "$WORKSPACE" ]; then
+   echo "There are $(/usr/bin/find /tmp \( -user jenkins -a -name sh-np.\* \) | wc -l) sh-np files owned by jenkins in /tmp that I am going to remove..."
+   /usr/bin/find /tmp \( -user jenkins -a -name sh-np.\* \) | xargs rm -f
+fi
+
 
 # AIX default ulimit is frequently less than we need to clone the LTS JDK repositories
 FILESIZELIMIT=$(ulimit)
@@ -58,25 +66,24 @@ if [ "${VARIANT}" == "${BUILD_VARIANT_OPENJ9}" ]; then
 fi
 echo LDR_CNTRL=$LDR_CNTRL
 
-BOOT_JDK_VERSION="$((JAVA_FEATURE_VERSION-1))"
-BOOT_JDK_VARIABLE="JDK${BOOT_JDK_VERSION}_BOOT_DIR"
+BOOT_JDK_VARIABLE="JDK${JDK_BOOT_VERSION}_BOOT_DIR"
 if [ ! -d "$(eval echo "\$$BOOT_JDK_VARIABLE")" ]; then
-  bootDir="$PWD/jdk-$BOOT_JDK_VERSION"
+  bootDir="$PWD/jdk-$JDK_BOOT_VERSION"
   # Note we export $BOOT_JDK_VARIABLE (i.e. JDKXX_BOOT_DIR) here
   # instead of BOOT_JDK_VARIABLE (no '$').
   export "${BOOT_JDK_VARIABLE}"="${bootDir}"
   if [ ! -x "$bootDir/bin/javac" ]; then
     # Set to a default location as linked in the ansible playbooks
-    if [ -x /usr/java${BOOT_JDK_VERSION}_64/bin/javac ]; then
-      echo Could not use "${BOOT_JDK_VARIABLE}" - using /usr/java${BOOT_JDK_VERSION}_64
+    if [ -x "/usr/java${JDK_BOOT_VERSION}_64/bin/javac" ]; then
+      echo "Could not use ${BOOT_JDK_VARIABLE} - using /usr/java${JDK_BOOT_VERSION}_64"
       # shellcheck disable=SC2140
-      export "${BOOT_JDK_VARIABLE}"="/usr/java${BOOT_JDK_VERSION}_64"
-    elif [ "$BOOT_JDK_VERSION" -ge 8 ]; then # Adopt has no build pre-8
+      export "${BOOT_JDK_VARIABLE}"="/usr/java${JDK_BOOT_VERSION}_64"
+    elif [ "$JDK_BOOT_VERSION" -ge 8 ]; then # Adoptium has no build pre-8
       mkdir -p "${bootDir}"
       releaseType="ga"
-      apiUrlTemplate="https://api.adoptopenjdk.net/v3/binary/latest/\${BOOT_JDK_VERSION}/\${releaseType}/aix/\${ARCHITECTURE}/jdk/hotspot/normal/adoptopenjdk"
+      apiUrlTemplate="https://api.adoptium.net/v3/binary/latest/\${JDK_BOOT_VERSION}/\${releaseType}/aix/\${ARCHITECTURE}/jdk/hotspot/normal/eclipse"
       apiURL=$(eval echo ${apiUrlTemplate})
-      echo "Downloading GA release of boot JDK version ${BOOT_JDK_VERSION} from ${apiURL}"
+      echo "Downloading GA release of boot JDK version ${JDK_BOOT_VERSION} from ${apiURL}"
       # make-adopt-build-farm.sh has 'set -e'. We need to disable that for
       # the fallback mechanism, as downloading of the GA binary might fail.
       set +e
@@ -86,11 +93,11 @@ if [ ! -d "$(eval echo "\$$BOOT_JDK_VARIABLE")" ]; then
       if [ $retVal -ne 0 ]; then
         # We must be a JDK HEAD build for which no boot JDK exists other than
         # nightlies?
-        echo "Downloading GA release of boot JDK version ${BOOT_JDK_VERSION} failed."
+        echo "Downloading GA release of boot JDK version ${JDK_BOOT_VERSION} failed."
         # shellcheck disable=SC2034
         releaseType="ea"
         apiURL=$(eval echo ${apiUrlTemplate})
-        echo "Attempting to download EA release of boot JDK version ${BOOT_JDK_VERSION} from ${apiURL}"
+        echo "Attempting to download EA release of boot JDK version ${JDK_BOOT_VERSION} from ${apiURL}"
         wget -q -O - "${apiURL}" | tar xpzf - --strip-components=1 -C "$bootDir"
       fi
     fi
@@ -119,13 +126,9 @@ fi
 
 if [ "$JAVA_FEATURE_VERSION" -ge 11 ]; then
   export LANG=C
-  if [ "$JAVA_FEATURE_VERSION" -ge 13 ]; then
-    export PATH=/opt/freeware/bin:$JAVA_HOME/bin:/usr/local/bin:/opt/IBM/xlC/16.1.0/bin:/opt/IBM/xlc/16.1.0/bin:$PATH
-    export CC=xlclang
-    export CXX=xlclang++
-  else
-    export PATH=/opt/freeware/bin:$JAVA_HOME/bin:/usr/local/bin:/opt/IBM/xlC/13.1.3/bin:/opt/IBM/xlc/13.1.3/bin:$PATH
-  fi
+  export PATH=/opt/freeware/bin:$JAVA_HOME/bin:/usr/local/bin:/opt/IBM/xlC/16.1.0/bin:/opt/IBM/xlc/16.1.0/bin:$PATH
+  export CC=xlclang
+  export CXX=xlclang++
 fi
 
 # J9 JDK14 builds seem to be chewing up more RAM than the others, so restrict it

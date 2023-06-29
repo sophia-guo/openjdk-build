@@ -18,7 +18,7 @@
 
 ################################################################################
 #
-# This script sets up the initial configuration for an (Adopt) OpenJDK Build.
+# This script sets up the initial configuration for an Adoptium OpenJDK Build.
 # See the configure_build function and its child functions for details.
 # It's sourced by the makejdk-any-platform.sh script.
 #
@@ -77,6 +77,13 @@ doAnyBuildVariantOverrides() {
   if [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_SAP}" ]]; then
     local branch="sapmachine10"
     BUILD_CONFIG[BRANCH]=${branch:-${BUILD_CONFIG[BRANCH]}}
+  elif [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_HOTSPOT}" ]] && [ "${BUILD_CONFIG[OS_ARCHITECTURE]}" == "riscv64" ]; then
+    if [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ] \
+      || [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK11_CORE_VERSION}" ] \
+      || [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK17_CORE_VERSION}" ]; then
+      local branch="riscv-port"
+      BUILD_CONFIG[BRANCH]=${branch:-${BUILD_CONFIG[BRANCH]}}
+    fi
   fi
 }
 
@@ -119,10 +126,17 @@ determineBuildProperties() {
 setVariablesForConfigure() {
 
   local openjdk_core_version=${BUILD_CONFIG[OPENJDK_CORE_VERSION]}
-  # test-image and debug-image targets are optional - build scripts check whether the directories exist
+  # test-image, debug-image and static-libs-image targets are optional - build scripts check whether the directories exist
   local openjdk_test_image_path="test"
   local openjdk_debug_image_path="debug-image"
 
+  # JDK 22+ uses static-libs-graal-image target, using static-libs-graal
+  # folder.
+  if [ "${BUILD_CONFIG[OPENJDK_FEATURE_NUMBER]}" -ge 22 ]; then
+    local static_libs_path="static-libs-graal"
+  else
+    local static_libs_path="static-libs"
+  fi
   if [ "$openjdk_core_version" == "${JDK8_CORE_VERSION}" ]; then
     local jdk_path="j2sdk-image"
     local jre_path="j2re-image"
@@ -147,6 +161,7 @@ setVariablesForConfigure() {
   BUILD_CONFIG[JRE_PATH]=$jre_path
   BUILD_CONFIG[TEST_IMAGE_PATH]=$openjdk_test_image_path
   BUILD_CONFIG[DEBUG_IMAGE_PATH]=$openjdk_debug_image_path
+  BUILD_CONFIG[STATIC_LIBS_IMAGE_PATH]=$static_libs_path
 }
 
 # Set the repository to build from, defaults to adoptium if not set by the user
@@ -167,12 +182,28 @@ setRepository() {
     suffix="corretto/corretto-${BUILD_CONFIG[OPENJDK_CORE_VERSION]:3}"
   elif [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_DRAGONWELL}" ]]; then
     suffix="alibaba/dragonwell${BUILD_CONFIG[OPENJDK_CORE_VERSION]/jdk/}"
+  elif [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_FAST_STARTUP}" ]]; then
+    suffix="adoptium/jdk11u-fast-startup-incubator"
   elif [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_BISHENG}" ]]; then
     suffix="openeuler-mirror/bishengjdk-${BUILD_CONFIG[OPENJDK_CORE_VERSION]:3}"
-  elif [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ] && [ "${BUILD_CONFIG[OS_ARCHITECTURE]}" == "armv7l" ]; then
+  elif [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ] && [ "${BUILD_CONFIG[OS_ARCHITECTURE]}" == "armv7l" ] && [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_TEMURIN}" ]]; then
     suffix="adoptium/aarch32-jdk8u";
-  else
+  elif [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ] && [ "${BUILD_CONFIG[OS_ARCHITECTURE]}" == "armv7l" ] && [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_HOTSPOT}" ]]; then
+    suffix="openjdk/aarch32-port-jdk8u";
+  elif [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ] && [[ "${BUILD_CONFIG[OS_FULL_VERSION]}" == *"Alpine"* ]] && [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_TEMURIN}" ]]; then
+    suffix="adoptium/alpine-jdk8u";
+  elif [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_HOTSPOT}" ]] && [ "${BUILD_CONFIG[OS_ARCHITECTURE]}" == "riscv64" ]; then
+    if [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ] \
+      || [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK11_CORE_VERSION}" ] \
+      || [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK17_CORE_VERSION}" ]; then
+      suffix="openjdk/riscv-port-${BUILD_CONFIG[OPENJDK_FOREST_NAME]}"
+    else
+      suffix="openjdk/${BUILD_CONFIG[OPENJDK_FOREST_NAME]}"
+    fi
+  elif [[ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_TEMURIN}" ]]; then
     suffix="adoptium/${BUILD_CONFIG[OPENJDK_FOREST_NAME]}"
+  else
+    suffix="openjdk/${BUILD_CONFIG[OPENJDK_FOREST_NAME]}"
   fi
 
   local repository
@@ -210,10 +241,13 @@ processArgumentsforSpecificArchitectures() {
     fi
 
     # This is to ensure consistency with the defaults defined in setMakeArgs()
-    if [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" != "${JDK8_CORE_VERSION}" ]; then
-      make_args_for_any_platform="CONF=${build_full_name} DEBUG_BINARIES=true product-images legacy-jre-image"
-    else
+    if [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ]; then
       make_args_for_any_platform="CONF=${build_full_name} DEBUG_BINARIES=true images"
+    # Don't produce a JRE
+    elif [ "${BUILD_CONFIG[CREATE_JRE_IMAGE]}" == "false" ]; then
+      make_args_for_any_platform="CONF=${build_full_name} DEBUG_BINARIES=true product-images"
+    else
+      make_args_for_any_platform="CONF=${build_full_name} DEBUG_BINARIES=true product-images legacy-jre-image"
     fi
     ;;
 
@@ -239,6 +273,10 @@ processArgumentsforSpecificArchitectures() {
   "armv7l")
     if [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" == "${JDK8_CORE_VERSION}" ] && isHotSpot; then
       jvm_variant=client
+      make_args_for_any_platform="DEBUG_BINARIES=true images"
+    elif [ "${BUILD_CONFIG[CREATE_JRE_IMAGE]}" == "false" ]; then
+      # Don't produce a JRE
+      jvm_variant=server,client
       make_args_for_any_platform="DEBUG_BINARIES=true images"
     else
       jvm_variant=server,client
@@ -289,8 +327,22 @@ function setMakeArgs() {
 
   if [ "${BUILD_CONFIG[OPENJDK_CORE_VERSION]}" != "${JDK8_CORE_VERSION}" ]; then
     case "${BUILD_CONFIG[OS_KERNEL_NAME]}" in
-    "darwin") BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]=${BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]:-"product-images mac-legacy-jre-bundle"} ;;
-    *) BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]=${BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]:-"product-images legacy-jre-image"} ;;
+    "darwin")
+      if [ "${BUILD_CONFIG[CREATE_JRE_IMAGE]}" == "false" ]; then
+        # Skip JRE
+        BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]=${BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]:-"product-images"}
+      else
+        BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]=${BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]:-"product-images mac-legacy-jre-bundle"}
+      fi
+      ;;
+    *)
+      if [ "${BUILD_CONFIG[CREATE_JRE_IMAGE]}" == "false" ]; then
+        # Skip JRE on JDK16+
+        BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]=${BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]:-"product-images"}
+      else
+        BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]=${BUILD_CONFIG[MAKE_ARGS_FOR_ANY_PLATFORM]:-"product-images legacy-jre-image"}
+      fi
+      ;;
     esac
     # In order to build an exploded image, no other make targets can be used
     if [ "${BUILD_CONFIG[MAKE_EXPLODED]}" == "true" ]; then

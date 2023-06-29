@@ -1,0 +1,32 @@
+name: CA Certs Update
+on:
+  workflow_dispatch:
+  schedule:
+    # https://crontab.guru/every-night-at-midnight
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  update_ca_certs:
+    if: startsWith(github.repository, 'adoptium/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        with:
+          persist-credentials: false
+
+      - name: Run updater
+        working-directory: ./security
+        run: "./mk-ca-bundle.pl"
+
+      - uses: gr2m/create-or-update-pull-request-action@dc1726cbf4dd3ce766af4ec29cfb660e0125e8ee # v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.ADOPTIUM_TEMURIN_BOT_TOKEN }}
+        with:
+          title: "Update CA Certs"
+          body: "See details in the Meta Bug linked from the *Root Cert Inclusions into Mozilla Product Releases* section of https://wiki.mozilla.org/NSS:Release_Versions"
+          path: "security/"
+          commit-message: "cacerts: pull in updated certs from Mozilla"
+          author: "eclipse-temurin-bot <temurin-bot@eclipse.org>"
