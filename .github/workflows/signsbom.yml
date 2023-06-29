@@ -16,9 +16,7 @@ concurrency:
 jobs:
   test_sbom_sign:
     name: sign_sbom
-    runs-on: ubuntu-latest
-    container:
-      image: adoptopenjdk/centos7_build_image
+    runs-on: windows-latest
     strategy:
       fail-fast: false
     steps:
