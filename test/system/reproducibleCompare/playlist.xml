@@ -21,6 +21,11 @@
 	docker cp reproducibleCompare:/home/jenkins/reprotest.diff ./; \
 	docker container rm reproducibleCompare
 	</command>
+		<disables>
+			<disable>
+				<comment>Testing</comment>
+			</disable>
+		</disables>
 		<levels>
 			<level>dev</level>
 		</levels>
@@ -36,9 +41,28 @@
 		<platformRequirements>os.linux</platformRequirements>
 	</test>
 	<test>
-		<testCaseName>Rebuild_Same_JDK_Reproducibility_Test_New</testCaseName>
-		<command>./linux_repro_build_compare.sh; \
-	$(TEST_STATUS);
+		<testCaseName>Rebuild_Same_JDK_Reproducibility_Test_Win</testCaseName>
+		<command>$(TEST_ROOT)$(D)system$(D)reproducibleCompare$(D)windows_repro_build_compare.sh $(WORKSPACE)/jdkbinary; \
+	$(TEST_STATUS)
+	</command>
+		<levels>
+			<level>dev</level>
+		</levels>
+		<groups>
+			<group>system</group>
+		</groups>
+        <vendors>
+            <vendor>eclipse</vendor>
+        </vendors>
+		<versions>
+			<version>21+</version>
+		</versions>
+		<platformRequirements>os.win</platformRequirements>
+	</test>
+	<test>
+		<testCaseName>Rebuild_Same_JDK_Reproducibility_linux</testCaseName>
+		<command>$(TEST_ROOT)$(D)system$(D)reproducibleCompare$(D)linux_repro_build_compare.sh $(WORKSPACE)/jdkbinary; \
+	$(TEST_STATUS)
 	</command>
 		<levels>
 			<level>dev</level>
