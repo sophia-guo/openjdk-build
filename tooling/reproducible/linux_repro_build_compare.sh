@@ -268,8 +268,13 @@ if [ "${isJdkDir}" = true ]; then
   comparedDir=$JDK_PARAM
 fi
 
-echo " cd temurin-build && ./makejdk-any-platform.sh $final_params 2>&1 | tee build.$$.log" | sh
-
+rc=0
+eval "echo \" cd temurin-build && ./makejdk-any-platform.sh $final_params 2>&1 | tee build.$$.log; echo \$?\" | sh > temp.log"
+rc=$(tail -n 1 temp.log)
+if [ $rc -ne 0 ]; then
+  echo "JDK rebuild failed. Stop and Exit..."
+  exit 1
+fi
 echo Comparing ...
 mkdir compare.$$
 tar xpfz temurin-build/workspace/target/OpenJDK*-jdk_*tar.gz -C compare.$$
@@ -278,7 +283,7 @@ cp "$SBOM" SBOM.json
 
 cleanBuildInfo "${comparedDir}"
 cleanBuildInfo "compare.$$/jdk-$TEMURIN_VERSION"
-rc=0
+
 # shellcheck disable=SC2069
 diff -r "${comparedDir}" "compare.$$/jdk-$TEMURIN_VERSION" 2>&1 > "reprotest.diff" || rc=$?
 
