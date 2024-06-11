@@ -118,6 +118,10 @@ downloadTooling() {
     echo "Retrieving boot JDK $BOOTJDK_VERSION" && mkdir -p /usr/lib/jvm && curl -L "https://api.adoptium.net/v3/binary/version/jdk-${BOOTJDK_VERSION}/linux/${NATIVE_API_ARCH}/jdk/hotspot/normal/eclipse?project=jdk" | (cd /usr/lib/jvm && tar xpzf -)
   fi
   if [[ "${using_DEVKIT}" == "false" ]]; then
+    echo "if container has local gcc?"
+    ls -ld "${LOCALGCCDIR}"
+    echo " sub folder"
+    ls -ld "${LOCALGCCDIR}/bin/g++-${GCCVERSION}"
     if [ ! -r "${LOCALGCCDIR}/bin/g++-${GCCVERSION}" ]; then
       echo "Retrieving gcc $GCCVERSION" && curl "https://ci.adoptium.net/userContent/gcc/gcc$(echo "$GCCVERSION" | tr -d .).$(uname -m).tar.xz" | (cd /usr/local && tar xJpf -) || exit 1
     fi
