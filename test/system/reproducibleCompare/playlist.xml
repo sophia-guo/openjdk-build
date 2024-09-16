@@ -61,7 +61,8 @@
 	</test>
 	<test>
 		<testCaseName>Rebuild_Same_JDK_Reproducibility_Test_Mac</testCaseName>
-		<command>ls -l $(TEST_ROOT)$(D)system$(D)reproducibleCompare$(D);\
+		<command>unset SPEC;\
+		ls -l $(TEST_ROOT)$(D)system$(D)reproducibleCompare$(D);\
 		$(TEST_ROOT)$(D)system$(D)reproducibleCompare$(D)macos_repro_build_compare.sh $(SBOM_FILE) $(JDK_FILE) $(REPORTDIR); \
 	$(TEST_STATUS)
 		</command>

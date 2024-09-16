@@ -51,11 +51,6 @@ MAC_COMPILER_BASE=/Applications
 MAC_COMPILER_APP_PREFIX=Xcode
 MAC_SDK_LOCATION=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
 
-# These 3 variables dictate which parameters passed to makejdk_any_platform.sh are config arguments, build arguments or should be ignored.
-CONFIG_ARGS=("--disable-warnings-as-errors" "--openjdk-target" "--with-sysroot" "--with-extra-cxxflags='" "--enable-dtrace" "--with-version-opt")
-NOTUSE_ARGS=("--assemble-exploded-image" "--configure-args")
-FINAL_ARG=("--build-variant")
-
 # These variables relate to the pre-requisite ant installation
 ANT_VERSION="1.10.5"
 ANT_CONTRIB_VERSION="1.0b3"
@@ -440,20 +435,19 @@ Clone_Build_Repo() {
 Prepare_Env_For_Build() {
   echo "Setting Variables"
   export BOOTJDK_HOME=$WORK_DIR/jdk-${bootJDK}/Contents/Home
-
-  local ignoreOptions=("--enable-sbom-strace --assemble-exploded-image")
-  for ignoreOption in "${ignoreOptions[@]}"; do
-    buildArgs="${buildArgs/${ignoreOption}/}"
-  done
+  
   # set --build-reproducible-date if not yet
   if [[ "${buildArgs}" != *"--build-reproducible-date"* ]]; then
     buildArgs="--build-reproducible-date \"${buildStamp}\" ${buildArgs}" 
   fi
-  #reset --jdk-boot-dir
+  # reset --jdk-boot-dir
   # shellcheck disable=SC2001
   buildArgs="$(echo "$buildArgs" | sed -e "s|--jdk-boot-dir [^ ]*|--jdk-boot-dir ${BOOTJDK_HOME}|")"
   buildArgs="$(echo "$buildArgs" | sed -e "s|--with-sysroot=[^ ]*|--with-sysroot=${MAC_SDK_LOCATION}|")"
   buildArgs="$(echo "$buildArgs" | sed -e "s|--user-openjdk-build-root-directory [^ ]*|--user-openjdk-build-root-directory ${WORK_DIR}/temurin-build/workspace/build/openjdkbuild/|")"
+  # remove ingored options
+  buildArgs=${buildArgs/--assemble-exploded-image /}
+  buildArgs=${buildArgs/--enable-sbom-strace /}
 
   echo ""
   echo "Make JDK Any Platform Argument List = "
