@@ -441,7 +441,7 @@ Prepare_Env_For_Build() {
   echo "Setting Variables"
   export BOOTJDK_HOME=$WORK_DIR/jdk-${bootJDK}/Contents/Home
 
-  local ignoreOptions=("--enable-sbom-strace ")
+  local ignoreOptions=("--enable-sbom-strace --assemble-exploded-image")
   for ignoreOption in "${ignoreOptions[@]}"; do
     buildArgs="${buildArgs/${ignoreOption}/}"
   done
@@ -467,7 +467,6 @@ Build_JDK() {
 
   # Trigger Build
   cd "$WORK_DIR"
-  set +e
   echo "cd temurin-build && ./makejdk-any-platform.sh $buildArgs 2>&1 | tee build.$$.log" | sh
   # Copy The Built JDK To The Working Directory
   cp $WORK_DIR/temurin-build/workspace/target/OpenJDK*-jdk_*tar.gz $WORK_DIR/reproJDK.tar.gz
