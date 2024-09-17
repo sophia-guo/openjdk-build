@@ -46,7 +46,7 @@ REPORT_DIR="$3"
 # The Defaults Below Are Suitable For An Adoptium Mac OS X Build Environment
 # Which Has Been Created Via The Ansible Infrastructure Playbooks
 
-WORK_DIR=~/comp-jdk-build
+WORK_DIR="${PWD}"/comp-jdk-build
 MAC_COMPILER_BASE=/Applications
 MAC_COMPILER_APP_PREFIX=Xcode
 MAC_SDK_LOCATION=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
@@ -435,7 +435,7 @@ Clone_Build_Repo() {
 Prepare_Env_For_Build() {
   echo "Setting Variables"
   export BOOTJDK_HOME=$WORK_DIR/jdk-${bootJDK}/Contents/Home
-  
+
   # set --build-reproducible-date if not yet
   if [[ "${buildArgs}" != *"--build-reproducible-date"* ]]; then
     buildArgs="--build-reproducible-date \"${buildStamp}\" ${buildArgs}" 
@@ -511,27 +511,23 @@ Compare_JDK() {
   # Ensure Java Home Is Set
   export JAVA_HOME=$BOOTJDK_HOME
   export PATH=$JAVA_HOME/bin:$PATH
-  echo "cd $WORK_DIR/compare && ./repro_compare.sh temurin src_jdk/Contents/Home temurin tar_jdk/Contents/Home Darwin 2>&1" | sh &
-  wait
-  rc=$?
-  set -e
+  rc=0
+  ./repro_compare.sh temurin src_jdk/Contents/Home temurin tar_jdk/Contents/Home Darwin 2>&1 || rc=$?
   cd "$WORK_DIR"
-  # Display The Content Of reprotest.diff
-  echo ""
-  echo "---------------------------------------------"
-  echo "Output From JDK Comparison Script"
-  echo "---------------------------------------------"
-  cat $WORK_DIR/compare/reprotest.diff
-  echo ""
-  echo "---------------------------------------------"
-  echo "Copying Output To $(dirname "$0")"
-  cp $WORK_DIR/compare/reprotest.diff $WORK_DIR/reprotest.diff
-   
+
+  if [ $rc -eq 0 ]; then
+    echo "Compare identical !"
+  else
+    echo "Differences found..., logged in: reprotest.diff"
+  fi
+
   if [ -n "$REPORT_DIR" ]; then
     echo "Copying Output To $REPORT_DIR"
     cp $WORK_DIR/compare/reprotest.diff "$REPORT_DIR"
     cp $WORK_DIR/reproJDK.tar.gz "$REPORT_DIR"
   fi
+  
+  exit $rc
   
 }
 #
