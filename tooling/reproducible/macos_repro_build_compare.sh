@@ -20,6 +20,7 @@
 # 3. This script requires that the correct versions of the sdk are installed and in the loaction defined in the MAC_SDK_LOCATION below.
 
 set -e
+source "$(dirname "$0")"/repro_compare.sh
 
 # Check All 3 Params Are Supplied
 if [ "$#" -lt 3 ]; then
@@ -476,21 +477,21 @@ Compare_JDK() {
 
   # Check The Comparison Scripts Are Present And Copy To The Working Directory
 
-  if [ -f ./repro_common.sh ]; then
-    cp ./repro_common.sh $WORK_DIR/compare/repro_common.sh
-  else
-    wget -O "$WORK_DIR/compare/repro_common.sh" "https://raw.githubusercontent.com/adoptium/temurin-build/master/tooling/reproducible/repro_common.sh"
-  fi
-  if [ -f ./repro_compare.sh ]; then
-    cp ./repro_compare.sh $WORK_DIR/compare/repro_compare.sh
-  else
-    wget -O "$WORK_DIR/compare/repro_compare.sh" "https://raw.githubusercontent.com/adoptium/temurin-build/master/tooling/reproducible/repro_compare.sh"
-  fi
-  if [ -f ./repro_process.sh ]; then
-    cp ./repro_process.sh $WORK_DIR/compare/repro_process.sh
-  else
-    wget -O "$WORK_DIR/compare/repro_process.sh" "https://raw.githubusercontent.com/adoptium/temurin-build/master/tooling/reproducible/repro_process.sh"
-  fi
+  # if [ -f ./repro_common.sh ]; then
+  #   cp ./repro_common.sh $WORK_DIR/compare/repro_common.sh
+  # else
+  #   wget -O "$WORK_DIR/compare/repro_common.sh" "https://raw.githubusercontent.com/adoptium/temurin-build/master/tooling/reproducible/repro_common.sh"
+  # fi
+  # if [ -f ./repro_compare.sh ]; then
+  #   cp ./repro_compare.sh $WORK_DIR/compare/repro_compare.sh
+  # else
+  #   wget -O "$WORK_DIR/compare/repro_compare.sh" "https://raw.githubusercontent.com/adoptium/temurin-build/master/tooling/reproducible/repro_compare.sh"
+  # fi
+  # if [ -f ./repro_process.sh ]; then
+  #   cp ./repro_process.sh $WORK_DIR/compare/repro_process.sh
+  # else
+  #   wget -O "$WORK_DIR/compare/repro_process.sh" "https://raw.githubusercontent.com/adoptium/temurin-build/master/tooling/reproducible/repro_process.sh"
+  # fi
   
   # Set Permissions
   chmod +x "$WORK_DIR/compare/"*sh
