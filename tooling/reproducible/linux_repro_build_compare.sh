@@ -189,6 +189,8 @@ elif [[ $JDK_PARAM =~ tar.gz ]]; then
 else
   # Local jdk dir
   cp -R "${JDK_PARAM}"/* "${sourceJDK}"
+  echo " list files of jdk binary"
+  ls -l "${JDK_PARAM}"
 fi
 
 echo "Rebuild args for makejdk_any_platform.sh are: $TEMURIN_BUILD_ARGS"
