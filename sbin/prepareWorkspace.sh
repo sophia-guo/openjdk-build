@@ -250,8 +250,14 @@ getOpenJCEPlusSources() {
   tar -xf ock/jgsk_crypto_sdk.tar -C ock
 	tar -xf ock/jgsk_crypto.tar     -C ock/jgsk_sdk/lib64
   # Create OpenJCEPlus Java module folder.
-	mkdir -p src/main/openjceplus/share/classes
+  # 
+	
+  mkdir -p src/main/openjceplus/share/classes
 	cp -r src/main/java/* src/main/openjceplus/share/classes/
+
+  cd "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[WORKING_DIR]}/${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}"/src
+  mkdir -p openjceplus/share/classes
+  cp -r "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[WORKING_DIR]}/${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}"/OpenJCEPlus/src/main/java/* openjceplus/share/classes/
 
   cd "${BUILD_CONFIG[WORKSPACE_DIR]}"
   #fi
