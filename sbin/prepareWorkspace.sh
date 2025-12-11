@@ -226,11 +226,35 @@ checkoutAndCloneOpenJDKGitRepo() {
   if [ "${BUILD_CONFIG[OPENJDK_LOCAL_SOURCE_ARCHIVE]}" == "false" ]; then
     git clean -ffdx
   fi
+
+  getOpenJCEPlusSources
   updateOpenj9Sources
 
   createSourceTagFile
 
   cd "${BUILD_CONFIG[WORKSPACE_DIR]}"
+}
+
+getOpenJCEPlusSources() {
+  # TODO, Need a flag, say a build variant , discussion
+  # if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_TEMURINFIPS}" ]; then
+    # FIPS build repositories
+  cd "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[WORKING_DIR]}/${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}" || return
+  set -x
+  git clone -b semeru-java25 git@github.com:ibmruntimes/OpenJCEPlus.git
+  cd OpenJCEPlus
+	mkdir -p ock/jgsk_sdk/lib64
+  curl -L https://ci.adoptium.net/view/Test_grinder/job/UploadFile/117/artifact/upload/jgsk_crypto.tar > ock/jgsk_crypto.tar
+  curl -L https://ci.adoptium.net/view/Test_grinder/job/UploadFile/116/artifact/upload/jgsk_crypto_sdk.tar > ock/jgsk_crypto_sdk.tar
+  
+  tar -xf ock/jgsk_crypto_sdk.tar -C ock
+	tar -xf ock/jgsk_crypto.tar     -C ock/jgsk_sdk/lib64
+  # Create OpenJCEPlus Java module folder.
+	mkdir -p src/main/openjceplus/share/classes
+	cp -r src/main/java/* src/main/openjceplus/share/classes/
+
+  cd "${BUILD_CONFIG[WORKSPACE_DIR]}"
+  #fi
 }
 
 # Checkout the required code to build from the given cached git repo
@@ -408,10 +432,21 @@ updateOpenj9Sources() {
   # Building OpenJDK with OpenJ9 must run get_source.sh to clone openj9 and openj9-omr repositories
   if [ "${BUILD_CONFIG[BUILD_VARIANT]}" == "${BUILD_VARIANT_OPENJ9}" ]; then
     cd "${BUILD_CONFIG[WORKSPACE_DIR]}/${BUILD_CONFIG[WORKING_DIR]}/${BUILD_CONFIG[OPENJDK_SOURCE_DIR]}" || return
+    set -x
+    OPENJCEPLUS_FLAGS=""
+    GSKIT_FLAGS=""
+    
+    if [ "${BUILD_CONFIG[BUNDLE_OPENJCEPLUS]}" == "true" ]; then
+      # Set the flags to get the OpenJCEPlus source code
+      OPENJCEPLUS_FLAGS="-openjceplus-repo=https://github.com/ibmruntimes/OpenJCEPlus.git -openjceplus-branch=${BUILD_CONFIG[OPENJCEPLUS_BRANCH]}"
+      GSKIT_FLAGS="-gskit-bin=https://ci.adoptium.net/view/Test_grinder/job/UploadFile/117/artifact/upload/jgsk_crypto.tar -gskit-sdk-bin=https://ci.adoptium.net/view/Test_grinder/job/UploadFile/116/artifact/upload/jgsk_crypto_sdk.tar"
+    fi
+    
     # NOTE: fetched openssl will NOT be used in the RISC-V cross-compile situation
-    bash get_source.sh -openssl-branch=openssl-3.0.16
+    bash get_source.sh -openssl-branch=openssl-3.5.4 ${OPENJCEPLUS_FLAGS} ${GSKIT_FLAGS}
     cd "${BUILD_CONFIG[WORKSPACE_DIR]}"
   fi
+
 }
 
 # Clone the git repo
